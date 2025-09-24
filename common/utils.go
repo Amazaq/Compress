@@ -76,28 +76,40 @@ func ReadDataFromFile(filePath string, limit int, skip int, column int) ([]float
 func GetBigData() ([]float64, error) {
 	var arr []float64
 
-	fileData, err := ReadDataFromFile("./dataset/air_sensor.csv", 10000, 1, 4)
+	fileData, err := ReadDataFromFile("./dataset/train/air_sensor.csv", 10000, 1, 4)
 	if err != nil {
 		fmt.Println("Read Data Error!!!")
 		return nil, err
 	}
 	arr = append(arr, fileData...)
 
-	fileData, err = ReadDataFromFile("./dataset/city_tempearature.csv", 2900000, 1, 7)
+	fileData, err = ReadDataFromFile("./dataset/train/city_temperature.csv", 2900000, 1, 7)
 	if err != nil {
 		fmt.Println("Read Data Error!!!")
 		return nil, err
 	}
 	arr = append(arr, fileData...)
 
-	fileData, err = ReadDataFromFile("./dataset/migration_original.csv", 89000, 1, 3)
+	fileData, err = ReadDataFromFile("./dataset/train/migration_original.csv", 89000, 1, 3)
 	if err != nil {
 		fmt.Println("Read Data Error!!!")
 		return nil, err
 	}
 	arr = append(arr, fileData...)
 
-	fileData, err = ReadDataFromFile("./dataset/wind_temp.csv", 750000, 10, 3)
+	fileData, err = ReadDataFromFile("./dataset/train/wind_temp.csv", 750000, 10, 1)
+	if err != nil {
+		fmt.Println("Read Data Error!!!")
+		return nil, err
+	}
+	arr = append(arr, fileData...)
+	fileData, err = ReadDataFromFile("./dataset/train/wind_temp.csv", 750000, 10, 2)
+	if err != nil {
+		fmt.Println("Read Data Error!!!")
+		return nil, err
+	}
+	arr = append(arr, fileData...)
+	fileData, err = ReadDataFromFile("./dataset/train/wind_temp.csv", 750000, 10, 3)
 	if err != nil {
 		fmt.Println("Read Data Error!!!")
 		return nil, err

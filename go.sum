@@ -36,6 +36,8 @@ github.com/klauspost/compress v1.17.8 h1:YcnTYrq7MikUT7k0Yb5eceMmALQPYBW/Xltxn0N
 github.com/klauspost/compress v1.17.8/go.mod h1:Di0epgTjJY877eYKx5yC51cX2A2Vl2ibi7bDH9ttBbw=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
+github.com/spenczar/fpc v1.0.0 h1:H0NtafmaWbJhSghiU5oilPzh/5kdbtQ8nTBt9I4dLMA=
+github.com/spenczar/fpc v1.0.0/go.mod h1:14BNj23NWSW7Hf2jk29+fpk9ufQKUGMCefCj9vgjwBU=
 github.com/stretchr/testify v1.11.1 h1:7s2iGBzp5EwR7/aIZr8ao5+dra3wiQyKjjFuvgVKu7U=
 github.com/stretchr/testify v1.11.1/go.mod h1:wZwfW3scLgRK+23gO65QZefKpKQRnfz6sD981Nm4B6U=
 github.com/valyala/gozstd v1.23.0 h1:Z4GbF3hkMbgwY2jTa9hbqmwjxzom+qW0VJowpHhp7YU=

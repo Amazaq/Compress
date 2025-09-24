@@ -1,10 +1,14 @@
 package main
 
 import (
+	"encoding/csv"
 	"fmt"
+	"log"
 	"math"
 	"myalgo/algorithms/chimp"
 	"myalgo/algorithms/chimp128"
+	"myalgo/algorithms/elf"
+	"myalgo/algorithms/fpc"
 	"myalgo/algorithms/gorillaz"
 	"myalgo/algorithms/huffman"
 	"myalgo/algorithms/lz4"
@@ -13,10 +17,38 @@ import (
 	"myalgo/common"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 )
 
+const datasetPath = "./dataset"
+const resultPath = datasetPath + "/result.csv"
+
+var filenames = []string{
+	"/Air-pressure.csv",
+	"/Air-sensor.csv",
+	"/Basel-temp.csv",
+	"/Basel-wind.csv",
+	"/Bird-migration.csv",
+	"/Bitcoin-price.csv",
+	"/Blockchain-tr.csv",
+	"/City-temp.csv",
+	"/City-lat.csv",
+	"/City-lon.csv",
+	"/Dew-point-temp.csv",
+	"/electric_vehicle_charging.csv",
+	"/Food-price.csv",
+	"/IR-bio-temp.csv",
+	"/PM10-dust.csv",
+	"/SSD-bench.csv",
+	"/POI-lat.csv",
+	"/POI-lon.csv",
+	"/Stocks-DE.csv",
+	"/Stocks-UK.csv",
+	"/Stocks-USA.csv",
+	"/Wind-Speed.csv",
+}
 var testcase = []struct {
 	algo            string
 	CompressFloat   func([]byte, []float64) []byte
@@ -25,9 +57,11 @@ var testcase = []struct {
 	{"zstd", zstd.CompressFloat, zstd.DecompressFloat},
 	{"lz4", lz4.CompressFloat, lz4.DecompressFloat},
 	{"huffman", huffman.CompressFloat, huffman.DecompressFloat},
+	{"elf", elf.CompressFloat, elf.DecompressFloat},
 	{"chimp128", chimp128.CompressFloat, chimp128.DecompressFloat},
 	{"chimp", chimp.CompressFloat, chimp.DecompressFloat},
 	{"gorilla", gorillaz.CompressFloat, gorillaz.DecompressFloat},
+	{"fpc", fpc.CompressFloat, fpc.DecompressFloat},
 	// {"model", model.CompressFloat, model.DecompressFloat},
 	// {"rule", rule.CompressFloat, rule.DecompressFloat},
 	// {"xor", xor.CompressFloat, xor.DecompressFloat},
@@ -70,12 +104,63 @@ func WriteFloatBinaryToFile(t *testing.T, float64s []float64, m int) {
 
 	fmt.Printf("已将%d个浮点数及其二进制表示写入 %s\n", m, dataFilePath)
 }
+func TestCompressor(t *testing.T) {
+	for _, tcase := range testcase {
+		fmt.Printf("%s ", tcase.algo)
+		t.Run(tcase.algo, func(t *testing.T) {
+			testCompressor(t, tcase.CompressFloat, tcase.DecompressFloat)
+		})
+	}
+}
+func testCompressor(t *testing.T, CompressFloat func([]byte, []float64) []byte, DecompressFloat func([]float64, []byte) ([]float64, error)) {
+	n := 100000
+	resultWriter := newCSVWriter(resultPath)
+	for _, file := range filenames {
+		fmt.Printf("%s ", file)
+		filepath := datasetPath + "/test" + file
+		float64s, _ := common.ReadDataFromFile(filepath, n, 0, 0)
+		var compressedByte []byte
+		start := time.Now()
+		compressedByte = CompressFloat(compressedByte, float64s)
+		end := time.Now()
+		fmt.Printf("Original size: %d |", len(float64s)*8)
+		fmt.Printf("Compressed size: %d |", len(compressedByte))
+		ratio := float64(len(float64s)*8) / float64(len(compressedByte))
+		fmt.Printf("Compression Ration: %f\n", ratio)
+		fmt.Print("Compress time:", end.Sub(start))
+		startde := time.Now()
+		var decompressedFloat64s []float64
+		decompressedFloat64s, err := DecompressFloat(decompressedFloat64s, compressedByte)
+		endde := time.Now()
+		fmt.Println(" | Decompress time:", endde.Sub(startde))
+		fmt.Println("-----------------------------------------")
+		if err != nil {
+			t.Error(err)
+		}
+		if len(decompressedFloat64s) != len(float64s) {
+			fmt.Printf("first value: %f\n", decompressedFloat64s[0])
+			fmt.Printf("Decompressed data length:%d\n", len(decompressedFloat64s))
+			t.Error("de-compress error")
+		}
+		for i := 0; i < len(decompressedFloat64s); i++ {
+			if decompressedFloat64s[i] != float64s[i] {
+				t.Errorf("de-compress error %v, want %f get %v", i, float64s[i], decompressedFloat64s[i])
+			}
+		}
 
+		resultWriter.Write([]string{
+			strconv.FormatFloat(ratio, 'f', -1, 64),
+			end.Sub(start).String(),
+			endde.Sub(startde).String(),
+		})
+	}
+	resultWriter.Flush()
+}
 func TestFloats(t *testing.T) {
 	n := 100000
 	m := 100
 	// float64s, _ := ReadDataFromFile("./dataset/city_temperature.csv", n, 0, 2)
-	float64s, _ := common.ReadDataFromFile("./dataset/wind.csv", n, 1, 10)
+	float64s, _ := common.ReadDataFromFile("./dataset/train/wind.csv", n, 1, 10)
 	// float64s = common.DeltaArr((float64s))
 	// float64s, _ := ReadDataFromFile("./dataset/air-sensor.csv", n, 4, 4)
 	// float64s, _ := ReadDataFromFile("./dataset/temperature_wind.csv", n, 10, 1)
@@ -215,4 +300,11 @@ func TestSimple8bDebug(t *testing.T) {
 	} else {
 		fmt.Printf("✗ 发现 %d 个不匹配的值\n", mismatchCount)
 	}
+}
+func newCSVWriter(path string) *csv.Writer {
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
+	if err != nil {
+		log.Fatal(err)
+	}
+	return csv.NewWriter(f)
 }

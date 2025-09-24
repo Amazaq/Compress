@@ -4,48 +4,22 @@ import (
 	"fmt"
 	"log"
 	"math"
-	"myalgo/algorithms/chimp"
-	"myalgo/algorithms/huffman"
 	"myalgo/algorithms/rule"
 	"myalgo/common"
 	"strconv"
 )
 
 const segmentLen = 5000 // 每段长度
-var trainDataLen = 750  // 训练集大小
-var delFunc = []struct {
-	del      string
-	transfer func(src []float64) []float64
-	reverse  func(src []float64) []float64
-}{
-	{"delta", rule.DeltaArr, rule.DeltaRecover},
-	{"deltaOfdelta", rule.DeltaOfDeltaArr, rule.DeltaOfDeltaRecover},
-	{"null", nullFunc, nullFunc},
-}
-var rangedFunc = []struct {
-	ranged   string
-	transfer func(src []float64) ([]float64, float64)
-	reverse  func(src []float64, base float64) []float64
-}{
-	{"ranged", rule.RangedArr, rule.RangedRecover},
-	{"null", nullRangedFunc, nullRangedRecoverFunc},
-}
-var compressFunc = []struct {
-	algo       string
-	compress   func(dst []byte, src []float64) []byte
-	decompress func(dst []float64, src []byte) ([]float64, error)
-}{
-	{"huffman", huffman.CompressFloat, huffman.DecompressFloat},
-	{"chimp", chimp.CompressFloat, chimp.DecompressFloat},
-}
+var trainDataLen = 0    // 训练集大小
 
-func GetTrainData(datafile string) {
+func GetTrainData() {
 	featureFile := "./dataset/train_features.csv"
 	labelFile := "./dataset/train_labels.csv"
 	featWriter := newCSVWriter(featureFile)
 	labelWriter := newCSVWriter(labelFile)
 
 	numbers, err := common.GetBigData()
+	fmt.Println("numbers length:", len(numbers))
 	trainDataLen = len(numbers) / segmentLen
 	if err != nil {
 		log.Fatal(err)
@@ -71,6 +45,7 @@ func GetTrainData(datafile string) {
 			strconv.Itoa(param[0]),
 			strconv.Itoa(param[1]),
 			strconv.Itoa(param[2]),
+			strconv.Itoa(param[3]),
 		})
 		fmt.Printf("Generate train data: %d / %d \n", i/segmentLen, trainDataLen)
 	}
@@ -82,20 +57,21 @@ func GetTrainData(datafile string) {
 }
 func findBestCombo(segment []float64) []int {
 	bestSize := math.Inf(1)
-	param := make([]int, 3)
-	for diff := range delFunc {
-		diffed := delFunc[diff].transfer(segment)
-
-		for sub := range rangedFunc {
-			subbed, _ := rangedFunc[sub].transfer(diffed)
-
-			for algo := range compressFunc {
-				var compressed []byte
-				compressed = compressFunc[algo].compress(compressed, subbed)
-				size := float64(len(compressed))
-				if size < bestSize {
-					bestSize = size
-					param[0], param[1], param[2] = diff, sub, algo
+	param := make([]int, 4)
+	for ranged := range rangedFunc {
+		rangedData, _ := rangedFunc[ranged].transfer(segment)
+		for scale := range scaleFunc {
+			scaledData, _, _ := scaleFunc[scale].transfer(rangedData)
+			for del := range delFunc {
+				delData := delFunc[del].transfer(scaledData)
+				for algo := range compressFunc {
+					var compressed []byte
+					compressed = compressFunc[algo].compress(compressed, delData)
+					size := float64(len(compressed))
+					if size < bestSize {
+						bestSize = size
+						param[0], param[1], param[2], param[3] = ranged, scale, del, algo
+					}
 				}
 			}
 		}

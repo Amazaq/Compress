@@ -1,14 +1,52 @@
 package model
 
 import (
-	"encoding/binary"
 	"encoding/csv"
-	"fmt"
 	"log"
-	"math"
+	"myalgo/algorithms/chimp128"
+	"myalgo/algorithms/fpc"
+	"myalgo/algorithms/huffman"
 	"myalgo/algorithms/rule"
+	"myalgo/algorithms/zstd"
 	"os"
 )
+
+var rangedFunc = []struct {
+	ranged   string
+	transfer func(src []float64) ([]float64, float64)
+	reverse  func(src []float64, base float64) []float64
+}{
+	{"ranged", rule.RangedArr, rule.RangedRecover},
+	{"null", nullRangedFunc, nullRangedRecoverFunc},
+}
+var scaleFunc = []struct {
+	scale    string
+	transfer func(src []float64) ([]float64, float64, float64)
+	reverse  func(src []float64, minNum, maxNum float64) []float64
+}{
+	{"minmax", rule.MinMaxRangedArr, rule.MinMaxRangedRecover},
+	{"null", nullScaleFunc, nullScaleRecoverFunc},
+}
+var delFunc = []struct {
+	del      string
+	transfer func(src []float64) []float64
+	reverse  func(src []float64) []float64
+}{
+	{"delta", rule.DeltaArr, rule.DeltaRecover},
+	{"deltaOfdelta", rule.DeltaOfDeltaArr, rule.DeltaOfDeltaRecover},
+	{"null", nullFunc, nullFunc},
+}
+
+var compressFunc = []struct {
+	algo       string
+	compress   func(dst []byte, src []float64) []byte
+	decompress func(dst []float64, src []byte) ([]float64, error)
+}{
+	{"huffman", huffman.CompressFloat, huffman.DecompressFloat},
+	{"chimp128", chimp128.CompressFloat, chimp128.DecompressFloat},
+	{"fpc", fpc.CompressFloat, fpc.DecompressFloat},
+	{"zstd", zstd.CompressFloat, zstd.DecompressFloat},
+}
 
 func newCSVWriter(path string) *csv.Writer {
 	f, err := os.Create(path)
@@ -93,44 +131,9 @@ func nullRangedFunc(src []float64) ([]float64, float64) {
 func nullRangedRecoverFunc(src []float64, base float64) []float64 {
 	return src
 }
-func RunCompressWithParam(dst []byte, src []float64, param []int) []byte {
-	diffed := delFunc[param[0]].transfer(src)
-	subbed, base := rangedFunc[param[1]].transfer(diffed)
-	dst = append(dst, byte(param[0]))
-	dst = append(dst, byte(param[1]))
-	dst = append(dst, byte(param[2]))
-	dst = binary.LittleEndian.AppendUint64(dst, math.Float64bits(base))
-	dst = compressFunc[param[2]].compress(dst, subbed)
-
-	return dst
+func nullScaleFunc(src []float64) ([]float64, float64, float64) {
+	return src, 0, 0
 }
-func RunDecompress(dst []float64, src []byte) ([]float64, error) {
-	if len(src) < 11 {
-		return nil, fmt.Errorf("invalid data: byte slice is too short, received %d bytes, need at least 11", len(src))
-	}
-
-	param0 := int(src[0])
-	param1 := int(src[1])
-	param2 := int(src[2])
-
-	if param0 >= len(delFunc) || param1 >= len(rangedFunc) || param2 >= len(compressFunc) {
-		return nil, fmt.Errorf("invalid parameters in data stream: p0=%d, p1=%d, p2=%d", param0, param1, param2)
-	}
-	offset := 3
-	baseBits := binary.LittleEndian.Uint64(src[offset : offset+8])
-	base := math.Float64frombits(baseBits)
-	offset += 8
-
-	decompressor := compressFunc[param2].decompress
-	dst, err := decompressor(dst, src[offset:])
-	if err != nil {
-		return nil, fmt.Errorf("decompression failed using %s: %w", compressFunc[param2].algo, err)
-	}
-
-	rangedReverser := rangedFunc[param1].reverse
-	dst = rangedReverser(dst, base)
-	deltaReverser := delFunc[param0].reverse
-	dst = deltaReverser(dst)
-
-	return dst, nil
+func nullScaleRecoverFunc(src []float64, minNum, maxNum float64) []float64 {
+	return src
 }
