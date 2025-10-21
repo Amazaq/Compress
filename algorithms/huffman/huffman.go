@@ -1,18 +1,10 @@
 package huffman
 
-// todo 输出频率表看看数据分布
 import (
 	"container/heap"
 	"encoding/binary"
 	"fmt"
-	"log"
 	"math"
-	"os"
-	"sort"
-
-	"gonum.org/v1/plot"
-	"gonum.org/v1/plot/plotter"
-	"gonum.org/v1/plot/vg"
 )
 
 // HuffmanNode 表示Huffman树的节点
@@ -56,65 +48,6 @@ func buildFrequencyTable(data []float64) map[float64]int {
 		freq[f]++
 	}
 	return freq
-}
-
-func createFrequencyPlot(data []float64) {
-	// 定义文件保存路径，并确保目录存在
-	filePath := "./pic/info.png"
-	dir := "./pic"
-	if _, err := os.Stat(dir); os.IsNotExist(err) {
-		os.MkdirAll(dir, 0755)
-	}
-
-	// --- 1. 构建频率表 ---
-	// 统计每个独立数值的出现次数
-	freqMap := make(map[float64]int)
-	for _, v := range data {
-		freqMap[v]++
-	}
-
-	// --- 2. 准备绘图数据 ---
-	// 为了让图表X轴有序，我们对map的键（也就是我们的数值）进行排序
-	var keys []float64
-	for k := range freqMap {
-		keys = append(keys, k)
-	}
-	sort.Float64s(keys)
-
-	// 创建一个 plotter.XYs 类型的切片来存储绘图点
-	// 每个点的 X 是数值，Y 是其出现的频率
-	points := make(plotter.XYs, len(keys))
-	for i, k := range keys {
-		points[i].X = k
-		points[i].Y = float64(freqMap[k])
-	}
-
-	// --- 3. 创建图表 ---
-	p := plot.New()
-	p.Title.Text = "数据频率分布散点图"
-	p.Y.Label.Text = "出现次数"
-	p.X.Label.Text = "数值"
-
-	// --- 4. 创建散点图对象 ---
-	s, err := plotter.NewScatter(points)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	// 设置点的大小
-	s.GlyphStyle.Radius = vg.Points(1)
-
-	// --- 5. 添加到图表 ---
-	// 只将散点图添加到图表中
-	p.Add(s)
-	// 注意：这里不再需要 p.NominalX()，因为X轴是连续的数值
-
-	// --- 6. 保存图表到文件 ---
-	if err := p.Save(8*vg.Inch, 4*vg.Inch, filePath); err != nil {
-		log.Fatal(err)
-	}
-
-	//fmt.Printf("频率分布散点图已成功保存到: %s\n", filePath)
 }
 
 // buildHuffmanTree 构建Huffman树
@@ -244,7 +177,6 @@ func CompressFloat(dst []byte, src []float64) []byte {
 	if len(src) == 0 {
 		return dst
 	}
-	createFrequencyPlot(src)
 	// 1. 构建浮点数频率表
 	freq := buildFrequencyTable(src)
 

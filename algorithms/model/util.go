@@ -4,10 +4,11 @@ import (
 	"encoding/csv"
 	"log"
 	"myalgo/algorithms/chimp128"
+	"myalgo/algorithms/elf"
 	"myalgo/algorithms/fpc"
 	"myalgo/algorithms/huffman"
-	"myalgo/algorithms/rule"
 	"myalgo/algorithms/zstd"
+	"myalgo/common"
 	"os"
 )
 
@@ -16,33 +17,35 @@ var rangedFunc = []struct {
 	transfer func(src []float64) ([]float64, float64)
 	reverse  func(src []float64, base float64) []float64
 }{
-	{"ranged", rule.RangedArr, rule.RangedRecover},
 	{"null", nullRangedFunc, nullRangedRecoverFunc},
+	{"log", common.LogedArr, common.LogedRecover},
+	{"ranged", common.RangedArr, common.RangedRecover},
 }
 var scaleFunc = []struct {
 	scale    string
 	transfer func(src []float64) ([]float64, float64, float64)
 	reverse  func(src []float64, minNum, maxNum float64) []float64
 }{
-	{"minmax", rule.MinMaxRangedArr, rule.MinMaxRangedRecover},
 	{"null", nullScaleFunc, nullScaleRecoverFunc},
+	{"zscore", common.ZScoreNormArr, common.ZScoreNormRecover},
+	{"minmax", common.MinMaxRangedArr, common.MinMaxRangedRecover},
 }
 var delFunc = []struct {
 	del      string
 	transfer func(src []float64) []float64
 	reverse  func(src []float64) []float64
 }{
-	{"delta", rule.DeltaArr, rule.DeltaRecover},
-	{"deltaOfdelta", rule.DeltaOfDeltaArr, rule.DeltaOfDeltaRecover},
 	{"null", nullFunc, nullFunc},
+	{"delta", common.DeltaArr, common.DeltaRecover},
+	{"deltaOfdelta", common.DeltaOfDeltaArr, common.DeltaOfDeltaRecover},
 }
-
 var compressFunc = []struct {
 	algo       string
 	compress   func(dst []byte, src []float64) []byte
 	decompress func(dst []float64, src []byte) ([]float64, error)
 }{
 	{"huffman", huffman.CompressFloat, huffman.DecompressFloat},
+	{"elf", elf.CompressFloat, elf.DecompressFloat},
 	{"chimp128", chimp128.CompressFloat, chimp128.DecompressFloat},
 	{"fpc", fpc.CompressFloat, fpc.DecompressFloat},
 	{"zstd", zstd.CompressFloat, zstd.DecompressFloat},
@@ -55,7 +58,7 @@ func newCSVWriter(path string) *csv.Writer {
 	}
 	return csv.NewWriter(f)
 }
-func flattenStats(s *rule.TimeSeriesStats) []float64 {
+func flattenStats(s *common.TimeSeriesStats) []float64 {
 	var v []float64
 	// 基本统计
 	v = append(v, s.Min, s.Max, s.Mean, s.Median, s.StdDev, s.Variance,

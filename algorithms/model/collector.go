@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log"
 	"math"
-	"myalgo/algorithms/rule"
 	"myalgo/common"
 	"strconv"
 )
@@ -12,13 +11,22 @@ import (
 const segmentLen = 5000 // 每段长度
 var trainDataLen = 0    // 训练集大小
 
-func GetTrainData() {
+func GetTrainData(dataset int) {
 	featureFile := "./dataset/train_features.csv"
 	labelFile := "./dataset/train_labels.csv"
 	featWriter := newCSVWriter(featureFile)
 	labelWriter := newCSVWriter(labelFile)
-
-	numbers, err := common.GetBigData()
+	// 把两种情况统一起来 读取的数据都用numbers表示
+	var numbers []float64
+	var err error
+	if dataset == 1 {
+		numbers, err = common.ReadDataFromFile("./dataset/train/ucr.csv", 80110000, 0, 0)
+		if err != nil {
+			fmt.Println("Read Data Error!!!")
+		}
+	} else {
+		numbers, err = common.GetBigData()
+	}
 	fmt.Println("numbers length:", len(numbers))
 	trainDataLen = len(numbers) / segmentLen
 	if err != nil {
@@ -28,7 +36,7 @@ func GetTrainData() {
 	for i := 0; i+segmentLen <= len(numbers); i += segmentLen {
 		segment := numbers[i : i+segmentLen]
 
-		stats := rule.AnalyzeTimeSeries((segment))
+		stats := common.AnalyzeTimeSeries((segment))
 		features := flattenStats(stats)
 
 		// 写特征
@@ -55,26 +63,29 @@ func GetTrainData() {
 
 	fmt.Println("✅ 已生成训练集:", featureFile, labelFile)
 }
+
 func findBestCombo(segment []float64) []int {
 	bestSize := math.Inf(1)
 	param := make([]int, 4)
+	bestParam := make([]int, 4)
 	for ranged := range rangedFunc {
-		rangedData, _ := rangedFunc[ranged].transfer(segment)
 		for scale := range scaleFunc {
-			scaledData, _, _ := scaleFunc[scale].transfer(rangedData)
 			for del := range delFunc {
-				delData := delFunc[del].transfer(scaledData)
 				for algo := range compressFunc {
-					var compressed []byte
-					compressed = compressFunc[algo].compress(compressed, delData)
-					size := float64(len(compressed))
+					var dst []byte
+					param[0] = ranged
+					param[1] = scale
+					param[2] = del
+					param[3] = algo
+					dst = RunCompressWithParam(dst, segment, param)
+					size := float64(len(dst))
 					if size < bestSize {
 						bestSize = size
-						param[0], param[1], param[2], param[3] = ranged, scale, del, algo
+						bestParam[0], bestParam[1], bestParam[2], bestParam[3] = ranged, scale, del, algo
 					}
 				}
 			}
 		}
 	}
-	return param
+	return bestParam
 }
