@@ -18,8 +18,8 @@ var rangedFunc = []struct {
 	reverse  func(src []float64, base float64) []float64
 }{
 	{"null", nullRangedFunc, nullRangedRecoverFunc},
-	{"log", common.LogedArr, common.LogedRecover},
-	{"ranged", common.RangedArr, common.RangedRecover},
+	// {"log", common.LogedArr, common.LogedRecover},
+	// {"ranged", common.RangedArr, common.RangedRecover},
 }
 var scaleFunc = []struct {
 	scale    string
@@ -27,8 +27,8 @@ var scaleFunc = []struct {
 	reverse  func(src []float64, minNum, maxNum float64) []float64
 }{
 	{"null", nullScaleFunc, nullScaleRecoverFunc},
-	{"zscore", common.ZScoreNormArr, common.ZScoreNormRecover},
-	{"minmax", common.MinMaxRangedArr, common.MinMaxRangedRecover},
+	// {"zscore", common.ZScoreNormArr, common.ZScoreNormRecover},
+	// {"minmax", common.MinMaxRangedArr, common.MinMaxRangedRecover},
 }
 var delFunc = []struct {
 	del      string
@@ -36,8 +36,8 @@ var delFunc = []struct {
 	reverse  func(src []float64) []float64
 }{
 	{"null", nullFunc, nullFunc},
-	{"delta", common.DeltaArr, common.DeltaRecover},
-	{"deltaOfdelta", common.DeltaOfDeltaArr, common.DeltaOfDeltaRecover},
+	// {"delta", common.DeltaArr, common.DeltaRecover},
+	// {"deltaOfdelta", common.DeltaOfDeltaArr, common.DeltaOfDeltaRecover},
 }
 var compressFunc = []struct {
 	algo       string

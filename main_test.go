@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
-	"myalgo/algorithms/chimp"
+	"myalgo/algorithms/lz4"
+	"myalgo/algorithms/lzw"
+	"myalgo/algorithms/snappy"
 	"testing"
 	"time"
 )
@@ -15,13 +17,13 @@ var testcases = []struct {
 	decompress func([]uint64, []byte) ([]uint64, error)
 }{
 
-	{"chimp", chimp.Compress, chimp.Decompress},
+	// {"chimp", chimp.Compress, chimp.Decompress},
 	// {"myalgo", myal.Compress, myal.Decompress},
 	// {"fpc", fpc.Compress, fpc.Decompress},
 	// {"gorillaz", gorillaz.Compress, gorillaz.Decompress},
-	// {"lz4", lz4.Compress, lz4.Decompress},
-	// {"lzw", lzw.Compress, lzw.Decompress},
-	// {"snappy", snappy.Compress, snappy.Decompress},
+	{"lz4", lz4.Compress, lz4.Decompress},
+	{"lzw", lzw.Compress, lzw.Decompress},
+	{"snappy", snappy.Compress, snappy.Decompress},
 	// {"tsxor", tsxor.Compress, tsxor.Decompress},
 }
 

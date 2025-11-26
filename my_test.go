@@ -5,15 +5,11 @@ import (
 	"fmt"
 	"log"
 	"math"
-	"myalgo/algorithms/chimp"
-	"myalgo/algorithms/chimp128"
-	"myalgo/algorithms/elf"
-	"myalgo/algorithms/fpc"
-	"myalgo/algorithms/gorillaz"
-	"myalgo/algorithms/huffman"
+	"myalgo/algorithms/brotli"
 	"myalgo/algorithms/lz4"
-	"myalgo/algorithms/model"
+	"myalgo/algorithms/numerical"
 	"myalgo/algorithms/simple8b"
+	"myalgo/algorithms/snappy"
 	"myalgo/algorithms/zstd"
 	"myalgo/common"
 	"os"
@@ -58,13 +54,17 @@ var testcase = []struct {
 }{
 	{"zstd", zstd.CompressFloat, zstd.DecompressFloat},
 	{"lz4", lz4.CompressFloat, lz4.DecompressFloat},
-	{"huffman", huffman.CompressFloat, huffman.DecompressFloat},
-	{"elf", elf.CompressFloat, elf.DecompressFloat},
-	{"chimp128", chimp128.CompressFloat, chimp128.DecompressFloat},
-	{"chimp", chimp.CompressFloat, chimp.DecompressFloat},
-	{"gorilla", gorillaz.CompressFloat, gorillaz.DecompressFloat},
-	{"fpc", fpc.CompressFloat, fpc.DecompressFloat},
-	{"model", model.CompressFloat, model.DecompressFloat},
+	{"snappy", snappy.CompressFloat, snappy.DecompressFloat},
+	{"brotli", brotli.CompressFloat, brotli.DecompressFloat},
+	{"numerical", numerical.CompressFloat, numerical.DecompressFloat},
+	// {"huffman", huffman.CompressFloat, huffman.DecompressFloat},
+	// {"elf", elf.CompressFloat, elf.DecompressFloat},
+	// {"chimp128", chimp128.CompressFloat, chimp128.DecompressFloat},
+	// {"chimp", chimp.CompressFloat, chimp.DecompressFloat},
+	// {"gorilla", gorillaz.CompressFloat, gorillaz.DecompressFloat},
+	// {"gorillaSub", gorillaz.CompressFloatSub, gorillaz.DecompressFloatSub},
+	// {"fpc", fpc.CompressFloat, fpc.DecompressFloat},
+	// {"model", model.CompressFloat, model.DecompressFloat},
 	// {"rule", rule.CompressFloat, rule.DecompressFloat},
 	// {"xor", xor.CompressFloat, xor.DecompressFloat},
 }
@@ -135,9 +135,30 @@ func testCompressor(t *testing.T, result []float64, CompressFloat func([]byte, [
 	totalRatio := 0.0
 	totalCompressTime := 0.0
 	totalDecompressTime := 0.0
-	for _, file := range filenames {
-		fmt.Printf("%s ", file)
-		filepath := datasetPath + "/test" + file
+
+	// 定义测试数据文件夹
+	// testFolder := datasetPath + "/ucrtest"
+	testFolder := datasetPath + "/test"
+
+	// 读取文件夹下的所有CSV文件
+	entries, err := os.ReadDir(testFolder)
+	if err != nil {
+		t.Fatalf("无法读取测试文件夹 %s: %v", testFolder, err)
+	}
+
+	var testFiles []string
+	for _, entry := range entries {
+		if !entry.IsDir() && filepath.Ext(entry.Name()) == ".csv" {
+			testFiles = append(testFiles, entry.Name())
+		}
+	}
+	if len(testFiles) == 0 {
+		t.Fatalf("测试文件夹 %s 中没有找到CSV文件", testFolder)
+	}
+
+	for _, file := range testFiles {
+		fmt.Printf("/%s ", file)
+		filepath := filepath.Join(testFolder, file)
 		float64s, _ := common.ReadDataFromFile(filepath, n, 0, 0)
 		var compressedByte []byte
 		start := time.Now()
@@ -182,7 +203,7 @@ func testCompressor(t *testing.T, result []float64, CompressFloat func([]byte, [
 			endde.Sub(startde).String(),
 		})
 	}
-	filenlen := len(filenames)
+	filenlen := len(testFiles)
 	result[0] = totalRatio / float64(filenlen)
 	result[1] = totalCompressTime / float64(filenlen)
 	result[2] = totalDecompressTime / float64(filenlen)
@@ -194,15 +215,15 @@ func testCompressor(t *testing.T, result []float64, CompressFloat func([]byte, [
 	resultWriter.Flush()
 }
 func TestFloats(t *testing.T) {
-	n := 100000
-	m := 100
+	n := 100
+	// m := 100
 	// float64s, _ := ReadDataFromFile("./dataset/city_temperature.csv", n, 0, 2)
-	// float64s, _ := common.ReadDataFromFile("./dataset/train/wind.csv", n, 1, 10)
-	float64s, _ := common.ReadDataFromFile("./dataset/test/Air-sensor.csv", n, 0, 0)
+	float64s, _ := common.ReadDataFromFile("./dataset/test/Stocks-DE.csv", n, 0, 0)
+	// float64s, _ := common.ReadDataFromFile("./dataset/test/Air-sensor.csv", n, 0, 0)
 	// float64s = common.DeltaArr((float64s))
 	// float64s, _ := ReadDataFromFile("./dataset/air-sensor.csv", n, 4, 4)
 	// float64s, _ := ReadDataFromFile("./dataset/temperature_wind.csv", n, 10, 1)
-	WriteFloatBinaryToFile(t, float64s, m)
+	// WriteFloatBinaryToFile(t, float64s, m)
 
 	for _, tcase := range testcase {
 		fmt.Printf("%s ", tcase.algo)

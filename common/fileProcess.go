@@ -54,6 +54,50 @@ func ReadDataFromFile(filePath string, limit int, skip int, column int) ([]float
 	return data, nil
 }
 
+// ReadDataFromFileWithStrings 读取数据并同时返回字符串数组（用于精度检测）
+func ReadDataFromFileWithStrings(filePath string, limit int, skip int, column int) ([]float64, []string, error) {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return nil, nil, fmt.Errorf("open file error '%s': %w", filePath, err)
+	}
+	defer file.Close()
+
+	reader := csv.NewReader(file)
+	//跳过标头
+	for i := 0; i < skip; i++ {
+		_, _ = reader.Read()
+	}
+	data := make([]float64, 0, limit)
+	dataStrings := make([]string, 0, limit)
+
+	for {
+		record, err := reader.Read()
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			return nil, nil, fmt.Errorf("read data error: %w", err)
+		}
+		if len(record) <= column {
+			continue
+		}
+
+		tempStr := record[column]
+		temp, err := strconv.ParseFloat(tempStr, 64)
+		if err != nil {
+			continue
+		}
+		data = append(data, temp)
+		dataStrings = append(dataStrings, tempStr)
+
+		if len(data) >= limit {
+			break
+		}
+	}
+
+	return data, dataStrings, nil
+}
+
 func GetBigData() ([]float64, error) {
 	var arr []float64
 
@@ -401,7 +445,7 @@ func GenerateUCRTestDataset(ucrDir, outputDir string, datasetCount, sampleSize i
 		if !entry.IsDir() {
 			continue
 		}
-		allValuesPath := filepath.Join(ucrDir, entry.Name(), "all_values.csv")
+		allValuesPath := filepath.Join(ucrDir, entry.Name(), "all_values.txt")
 		if _, err := os.Stat(allValuesPath); err == nil {
 			validDatasets = append(validDatasets, entry.Name())
 		}
@@ -436,7 +480,7 @@ func GenerateUCRTestDataset(ucrDir, outputDir string, datasetCount, sampleSize i
 	for i, datasetName := range selectedDatasets {
 		fmt.Printf("\n[%d/%d] 处理 %s\n", i+1, datasetCount, datasetName)
 
-		allValuesPath := filepath.Join(ucrDir, datasetName, "all_values.csv")
+		allValuesPath := filepath.Join(ucrDir, datasetName, "all_values.txt")
 
 		// 读取文件并计算总行数
 		file, err := os.Open(allValuesPath)
@@ -456,17 +500,7 @@ func GenerateUCRTestDataset(ucrDir, outputDir string, datasetCount, sampleSize i
 		}
 		file.Close()
 
-		if totalCount < sampleSize {
-			fmt.Printf("  ⚠️  数据量不足 (总共 %d 个，需要 %d 个)，跳过\n", totalCount, sampleSize)
-			continue
-		}
-
-		// 随机选择起始位置
-		maxStartPos := totalCount - sampleSize
-		startPos := rng.Intn(maxStartPos + 1)
-		fmt.Printf("  总数据量: %d, 起始位置: %d\n", totalCount, startPos)
-
-		// 重新打开文件并读取指定范围的数据
+		// 读取所有数据到内存
 		file, err = os.Open(allValuesPath)
 		if err != nil {
 			fmt.Printf("  ✗ 重新打开文件失败: %v\n", err)
@@ -474,29 +508,33 @@ func GenerateUCRTestDataset(ucrDir, outputDir string, datasetCount, sampleSize i
 		}
 
 		scanner = bufio.NewScanner(file)
-		currentPos := 0
-		var extractedData []string
-
+		var allData []string
 		for scanner.Scan() {
 			line := strings.TrimSpace(scanner.Text())
-			if line == "" {
-				continue
-			}
-
-			if currentPos >= startPos && currentPos < startPos+sampleSize {
-				extractedData = append(extractedData, line)
-			}
-
-			currentPos++
-			if currentPos >= startPos+sampleSize {
-				break
+			// 过滤掉空行和NaN值
+			if line != "" && line != "NaN" && line != "nan" && line != "NAN" {
+				allData = append(allData, line)
 			}
 		}
 		file.Close()
 
-		if len(extractedData) != sampleSize {
-			fmt.Printf("  ✗ 提取数据量不符 (期望 %d，实际 %d)\n", sampleSize, len(extractedData))
+		if len(allData) == 0 {
+			fmt.Printf("  ✗ 没有有效数据（全部为NaN）\n")
 			continue
+		}
+
+		// 生成数据（有多少用多少）
+		var extractedData []string
+		if len(allData) >= sampleSize {
+			// 数据充足，随机选择起始位置
+			maxStartPos := len(allData) - sampleSize
+			startPos := rng.Intn(maxStartPos + 1)
+			extractedData = allData[startPos : startPos+sampleSize]
+			fmt.Printf("  总数据量: %d, 起始位置: %d, 提取: %d 个\n", len(allData), startPos, sampleSize)
+		} else {
+			// 数据不足，全部使用
+			extractedData = allData
+			fmt.Printf("  总数据量: %d (不足 %d，使用全部数据)\n", len(allData), sampleSize)
 		}
 
 		// 写入输出文件
@@ -508,19 +546,24 @@ func GenerateUCRTestDataset(ucrDir, outputDir string, datasetCount, sampleSize i
 		}
 
 		writer := bufio.NewWriter(outFile)
+		writtenCount := 0
 		for _, value := range extractedData {
-			_, err := writer.WriteString(value + "\n")
-			if err != nil {
-				outFile.Close()
-				fmt.Printf("  ✗ 写入数据失败: %v\n", err)
-				continue
+			// 双重保险：写入前再次检查是否为NaN
+			if value != "NaN" && value != "nan" && value != "NAN" {
+				_, err := writer.WriteString(value + "\n")
+				if err != nil {
+					outFile.Close()
+					fmt.Printf("  ✗ 写入数据失败: %v\n", err)
+					continue
+				}
+				writtenCount++
 			}
 		}
 
 		writer.Flush()
 		outFile.Close()
 
-		fmt.Printf("  ✓ 成功生成: %s (%d 个数值)\n", outputPath, len(extractedData))
+		fmt.Printf("  ✓ 成功生成: %s (%d 个数值)\n", outputPath, writtenCount)
 		successCount++
 	}
 
