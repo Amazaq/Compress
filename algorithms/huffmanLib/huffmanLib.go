@@ -1,33 +1,47 @@
-package ans
+package huffmanLib
 
 import (
+	"bytes"
 	"encoding/binary"
 	"fmt"
+	"io"
 	"math"
 
-	"github.com/klauspost/compress/fse"
+	"github.com/icza/huffman/hufio"
 )
 
-// CompressBytes 直接压缩任意字节流，并保留与 Compress 相同的标记格式
+// CompressBytes 压缩任意字节流，保留与其他接口一致的标记格式
 func CompressBytes(dst []byte, src []byte) []byte {
-	return append(dst, buildCompressedBlock(src)...)
+	return append(dst, buildHuffmanBlock(src)...)
 }
 
-func buildCompressedBlock(src []byte) []byte {
-	compressed, err := fse.Compress(src, nil)
-	if err != nil || len(compressed) == 0 || len(compressed) >= len(src) {
-		result := make([]byte, 1+len(src))
-		result[0] = 0
-		copy(result[1:], src)
-		return result
+func buildHuffmanBlock(src []byte) []byte {
+	var buf bytes.Buffer
+	w := hufio.NewWriter(&buf)
+	if _, err := w.Write(src); err != nil {
+		return wrapUncompressed(src)
 	}
-	result := make([]byte, 1+len(compressed))
-	result[0] = 1
-	copy(result[1:], compressed)
-	return result
+	if err := w.Close(); err != nil {
+		return wrapUncompressed(src)
+	}
+	compressed := buf.Bytes()
+	if len(compressed) == 0 || len(compressed) >= len(src) {
+		return wrapUncompressed(src)
+	}
+	res := make([]byte, 1+len(compressed))
+	res[0] = 1
+	copy(res[1:], compressed)
+	return res
 }
 
-// DecompressBytes 解压 byte 流
+func wrapUncompressed(src []byte) []byte {
+	res := make([]byte, 1+len(src))
+	res[0] = 0
+	copy(res[1:], src)
+	return res
+}
+
+// DecompressBytes 解压到字节流
 func DecompressBytes(dst []byte, src []byte) ([]byte, error) {
 	if len(src) == 0 {
 		return dst, fmt.Errorf("empty input")
@@ -39,7 +53,8 @@ func DecompressBytes(dst []byte, src []byte) ([]byte, error) {
 		err  error
 	)
 	if flag == 1 {
-		uncb, err = fse.Decompress(data, nil)
+		r := hufio.NewReader(bytes.NewReader(data))
+		uncb, err = io.ReadAll(r)
 		if err != nil {
 			return dst, err
 		}
@@ -49,6 +64,7 @@ func DecompressBytes(dst []byte, src []byte) ([]byte, error) {
 	return append(dst, uncb...), nil
 }
 
+// Compress 压缩 uint64 数组，行为类似 ans.Compress：当压缩无效时返回未压缩的数据并在首字节标记为0，压缩成功时标记为1
 func Compress(dst []byte, src []uint64) []byte {
 	uncb := make([]byte, len(src)*8)
 	for i, u := range src {
@@ -58,6 +74,7 @@ func Compress(dst []byte, src []uint64) []byte {
 	return CompressBytes(dst, uncb)
 }
 
+// CompressFloat 压缩 float64 数组（使用与 Compress 相同的封装）
 func CompressFloat(dst []byte, src []float64) []byte {
 	uncb := make([]byte, len(src)*8)
 	for i, u := range src {
@@ -68,6 +85,7 @@ func CompressFloat(dst []byte, src []float64) []byte {
 	return CompressBytes(dst, uncb)
 }
 
+// Decompress 解压缩到 uint64 数组，支持 Compress 写入的标记格式
 func Decompress(dst []uint64, src []byte) ([]uint64, error) {
 	uncb, err := DecompressBytes(nil, src)
 	if err != nil {
@@ -80,6 +98,7 @@ func Decompress(dst []uint64, src []byte) ([]uint64, error) {
 	return dst, nil
 }
 
+// DecompressFloat 解压缩到 float64 数组
 func DecompressFloat(dst []float64, src []byte) ([]float64, error) {
 	if len(src) == 0 {
 		return dst, nil

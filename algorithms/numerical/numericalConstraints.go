@@ -40,11 +40,17 @@ type NumericalConstraints struct {
 	// DiscreteStep 离散值步长（如果数据是离散的，如 0.5 的倍数）
 	DiscreteStep float64
 
+	// Sparse 是否稀疏（>90% 数值为 0）
+	Sparse bool
+
+	// ZeroRatio 稀疏情况下 0 值占比
+	ZeroRatio float64
+
 	// ========== 约束启用标志 ==========
 
 	// HasConstraints 标记哪些约束被启用
-	// 索引对应：0-精度, 1-范围, 2-枚举值, 3-单调性, 4-正负值, 5-离散值
-	HasConstraints [6]bool
+	// 索引对应：0-精度, 1-范围, 2-枚举值, 3-单调性, 4-正负值, 5-离散值, 6-稀疏
+	HasConstraints [7]bool
 }
 
 // 约束类型常量
@@ -55,6 +61,7 @@ const (
 	ConstraintMonotonicity = 3 // 单调性
 	ConstraintSign         = 4 // 正负值
 	ConstraintDiscrete     = 5 // 离散值
+	ConstraintSparse       = 6 // 稀疏性（>90% 数值为 0）
 )
 
 const (
@@ -95,11 +102,13 @@ func NewNumericalConstraints() *NumericalConstraints {
 		AllowPositive:         true,
 		AllowNegative:         true,
 		DiscreteStep:          0, // 0 表示连续值
-		HasConstraints:        [6]bool{false, false, false, false, false, false},
+		Sparse:                false,
+		ZeroRatio:             0,
+		HasConstraints:        [7]bool{false, false, false, false, false, false, false},
 	}
 }
 
-// EnableConstraint 启用指定的约束
+// EnableConstraint 启用指定的约束 索引对应：0-精度, 1-范围, 2-枚举值, 3-单调性, 4-正负值, 5-离散值, 6-稀疏
 func (nc *NumericalConstraints) EnableConstraint(constraintType int) {
 	if constraintType >= 0 && constraintType < len(nc.HasConstraints) {
 		nc.HasConstraints[constraintType] = true
@@ -117,6 +126,15 @@ func (nc *NumericalConstraints) DisableConstraint(constraintType int) {
 func (nc *NumericalConstraints) HasConstraint(constraintType int) bool {
 	if constraintType >= 0 && constraintType < len(nc.HasConstraints) {
 		return nc.HasConstraints[constraintType]
+	}
+	return false
+}
+
+func (nc *NumericalConstraints) IsConstraintValid() bool {
+	for i := 0; i < len(nc.HasConstraints); i++ {
+		if nc.HasConstraints[i] {
+			return true
+		}
 	}
 	return false
 }
@@ -140,7 +158,7 @@ func (nc *NumericalConstraints) SetEnumerationConstraint(values []float64) {
 	nc.EnableConstraint(ConstraintEnumeration)
 }
 
-// SetMonotonicityConstraint 设置单调性约束
+// SetMonotonicityConstraint 设置单调性约束 0: 无单调性, 1: 单调递增, -1: 单调递减, 2: 严格递增, -2: 严格递减
 func (nc *NumericalConstraints) SetMonotonicityConstraint(monotonicity int) {
 	nc.Monotonicity = monotonicity
 	nc.EnableConstraint(ConstraintMonotonicity)
@@ -157,6 +175,18 @@ func (nc *NumericalConstraints) SetSignConstraint(allowPositive, allowNegative b
 func (nc *NumericalConstraints) SetDiscreteConstraint(step float64) {
 	nc.DiscreteStep = step
 	nc.EnableConstraint(ConstraintDiscrete)
+}
+
+// SetSparseConstraint 设置稀疏约束
+func (nc *NumericalConstraints) SetSparseConstraint(isSparse bool, zeroRatio float64) {
+	nc.Sparse = isSparse
+	if isSparse {
+		nc.ZeroRatio = zeroRatio
+		nc.EnableConstraint(ConstraintSparse)
+	} else {
+		nc.ZeroRatio = 0
+		nc.DisableConstraint(ConstraintSparse)
+	}
 }
 
 // ========== 预处理和复原函数 ==========
@@ -365,45 +395,6 @@ func (nc *NumericalConstraints) RestoreDiscrete(data []int64, baseValue float64)
 
 // ========== 自动检测约束 ==========
 
-// detectDecimalPlaces 检测一个浮点数的小数位数
-func detectDecimalPlaces(value float64) int {
-	if value < 0 {
-		value = -value
-	}
-
-	// 如果是整数，返回 0
-	if value == float64(int64(value)) {
-		return 0
-	}
-
-	// 使用预计算的 10 的幂次表
-	pow10 := [...]float64{1, 10, 100, 1000, 10000, 100000, 1000000, 10000000, 100000000, 1000000000, 10000000000, 100000000000, 1000000000000, 10000000000000, 100000000000000, 1000000000000000}
-
-	// 从小数位数开始尝试（参考 ELF 的 getSignificantCount 方法）
-	for i := 1; i < len(pow10); i++ {
-		temp := value * pow10[i]
-		tempLong := float64(int64(temp))
-
-		// 如果乘以 10^i 后等于整数，说明至多有 i 位小数
-		if tempLong == temp {
-			// 双重验证：除回去应该等于原值（参考 ELF 的验证机制）
-			if temp/pow10[i] != value {
-				continue // 验证失败，继续尝试更高精度
-			}
-
-			// 去掉末尾的 0
-			result := i
-			for result > 0 && int64(tempLong)%10 == 0 {
-				result--
-				tempLong = float64(int64(tempLong) / 10)
-			}
-			return result
-		}
-	}
-
-	return 15 // 超过精度范围
-}
-
 // detectDecimalPlacesFromString 从字符串直接检测小数位数（避免float64精度问题）
 func detectDecimalPlacesFromString(str string) int {
 	// 去掉前导空格和正负号
@@ -491,6 +482,8 @@ func DetectConstraints(data []float64) *NumericalConstraints {
 	valueSet[data[0]] = true
 	uniqueValues = append(uniqueValues, data[0])
 
+	zeroCount := 0
+
 	// 离散步长检测
 	diffs := make(map[float64]int)
 	tolerance := 1e-10
@@ -498,6 +491,10 @@ func DetectConstraints(data []float64) *NumericalConstraints {
 	// 一次循环完成所有检测
 	for i := 0; i < len(data); i++ {
 		v := data[i]
+
+		if v == 0 {
+			zeroCount++
+		}
 
 		// 1. 范围检测
 		if v < minVal {
@@ -577,9 +574,6 @@ func DetectConstraints(data []float64) *NumericalConstraints {
 
 	// 1. 精度 - 使用合理的精度，忽略异常高精度值
 	if maxPrecision >= 0 {
-		// 计算精度的合理值：
-		// - 如果最大精度 >= 10，检查是否是异常值（出现次数很少）
-		// - 使用 95% 分位数精度，而不是最大精度
 		reasonablePrecision := maxPrecision
 
 		if maxPrecision >= 10 {
@@ -605,21 +599,29 @@ func DetectConstraints(data []float64) *NumericalConstraints {
 			}
 
 			// 如果调整了精度，打印提示信息
-			if reasonablePrecision != maxPrecision {
-				fmt.Printf("[提示] 检测到 %d 位小数精度，但有 %d 个异常高精度值 (%.2f%%)，实际使用 %d 位精度\n",
-					maxPrecision, cumulativeCount, float64(cumulativeCount)*100.0/float64(totalCount), reasonablePrecision)
-			}
+			// if reasonablePrecision != maxPrecision {
+			// 	fmt.Printf("[提示] 检测到 %d 位小数精度，但有 %d 个异常高精度值 (%.2f%%)，实际使用 %d 位精度\n",
+			// 		maxPrecision, cumulativeCount, float64(cumulativeCount)*100.0/float64(totalCount), reasonablePrecision)
+			// }
 		}
 
-		nc.SetPrecisionConstraint(reasonablePrecision)
+		if reasonablePrecision <= 8 {
+			nc.SetPrecisionConstraint(reasonablePrecision)
+		}
 	}
 
 	// 2. 范围
 	nc.SetRangeConstraint(minVal, maxVal)
 
-	// 3. 枚举值（如果唯一值数量较少）
-	if len(uniqueValues) > 0 && len(uniqueValues) <= len(data)/10 && len(uniqueValues) <= 100 {
-		nc.SetEnumerationConstraint(uniqueValues)
+	// 3. 枚举值（如果唯一值数量足够少）
+	if len(uniqueValues) > 0 {
+		maxEnums := len(data) / 100
+		if maxEnums == 0 {
+			maxEnums = 1
+		}
+		if len(uniqueValues) <= maxEnums {
+			nc.SetEnumerationConstraint(uniqueValues)
+		}
 	}
 
 	// 4. 单调性
@@ -680,6 +682,11 @@ func DetectConstraints(data []float64) *NumericalConstraints {
 		if isDiscrete {
 			nc.SetDiscreteConstraint(minDiff)
 		}
+	}
+
+	zeroRatio := float64(zeroCount) / float64(len(data))
+	if zeroRatio >= 0.9 {
+		nc.SetSparseConstraint(true, zeroRatio)
 	}
 
 	return nc
@@ -766,6 +773,13 @@ func (nc *NumericalConstraints) PrintConstraints() {
 		fmt.Println("✗ 离散值: 未启用")
 	}
 
+	// 打印稀疏约束
+	if nc.HasConstraint(ConstraintSparse) {
+		fmt.Printf("✓ 稀疏: %.2f%% 的样本为 0\n", nc.ZeroRatio*100)
+	} else {
+		fmt.Println("✗ 稀疏: 未启用")
+	}
+
 	fmt.Println("==================")
 }
 
@@ -831,6 +845,8 @@ func DetectConstraintsWithStrings(data []float64, dataStrings []string) *Numeric
 	valueSet[data[0]] = true
 	uniqueValues = append(uniqueValues, data[0])
 
+	zeroCount := 0
+
 	// 离散步长检测
 	diffs := make(map[float64]int)
 	tolerance := 1e-10
@@ -838,6 +854,10 @@ func DetectConstraintsWithStrings(data []float64, dataStrings []string) *Numeric
 	// 一次循环完成所有检测
 	for i := 0; i < len(data); i++ {
 		v := data[i]
+
+		if v == 0 {
+			zeroCount++
+		}
 
 		// 1. 范围检测
 		if v < minVal {
@@ -942,7 +962,9 @@ func DetectConstraintsWithStrings(data []float64, dataStrings []string) *Numeric
 		}
 	}
 
-	nc.SetPrecisionConstraint(reasonablePrecision)
+	if reasonablePrecision <= 8 {
+		nc.SetPrecisionConstraint(reasonablePrecision)
+	}
 	nc.SetRangeConstraint(minVal, maxVal)
 
 	// 设置正负值约束
@@ -964,8 +986,14 @@ func DetectConstraintsWithStrings(data []float64, dataStrings []string) *Numeric
 	}
 
 	// 检测枚举值约束（如果唯一值数量很少）
-	if len(uniqueValues) <= 10 && len(uniqueValues) < len(data)/10 {
-		nc.SetEnumerationConstraint(uniqueValues)
+	if len(uniqueValues) > 0 {
+		maxEnums := len(data) / 100
+		if maxEnums == 0 {
+			maxEnums = 1
+		}
+		if len(uniqueValues) <= maxEnums {
+			nc.SetEnumerationConstraint(uniqueValues)
+		}
 	}
 
 	// 检测离散步长约束
@@ -986,6 +1014,11 @@ func DetectConstraintsWithStrings(data []float64, dataStrings []string) *Numeric
 		}
 	}
 
+	zeroRatio := float64(zeroCount) / float64(len(data))
+	if zeroRatio >= 0.9 {
+		nc.SetSparseConstraint(true, zeroRatio)
+	}
+
 	return nc
 }
 
@@ -1001,8 +1034,13 @@ type AnomalyInfo struct {
 // 返回：异常值个数、异常值数组
 func (nc *NumericalConstraints) ValidateConstraints(data []float64, dataStrings []string) (int, []AnomalyInfo) {
 	var anomalies []AnomalyInfo
+	zeroCount := 0
 
 	for i, v := range data {
+		if v == 0 {
+			zeroCount++
+		}
+
 		// 1. 检查范围约束
 		if nc.HasConstraint(ConstraintRange) {
 			if v < nc.MinValue || v > nc.MaxValue {
@@ -1142,6 +1180,18 @@ func (nc *NumericalConstraints) ValidateConstraints(data []float64, dataStrings 
 				})
 				continue
 			}
+		}
+	}
+
+	if nc.HasConstraint(ConstraintSparse) && len(data) > 0 {
+		zeroRatio := float64(zeroCount) / float64(len(data))
+		if zeroRatio < 0.9 {
+			anomalies = append(anomalies, AnomalyInfo{
+				Index:          -1,
+				Value:          zeroRatio,
+				Reason:         fmt.Sprintf("稀疏约束要求 ≥90%% 为 0，当前仅 %.2f%%", zeroRatio*100),
+				ConstraintType: ConstraintSparse,
+			})
 		}
 	}
 

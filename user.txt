@@ -1,8 +1,26 @@
 TODO:
-    ***新特征
-    ***找其他特征的数据集（递增的……）
-    *精度检测
-    *要不要加LZ阶段（RLE等等）
+    ***特性
+        (稀疏值 )
+        (有限范围 )
+        (周期性)
+        (固定小数位数 STockDE.csv FoodPrice.csv)
+        (递增 Electricity_B1E.csv Water_DWW.csv)
+        (枚举值/离散值 Electricity_CWE.csv Water_WHW.csv)
+        (非规则数据)
+
+    ***特性预处理方法
+
+    ***新数据集
+
+    *精度检测（solution：预先给定好的精度）
     数组长度（1000、5000、10000）
-    huffman、rangeCoding、ANS用哪个（熵编码）
+    huffman、rangeCoding、ANS（熵编码）
+    -ANS:        （100000 5.633）
+    -rangeCoding:（100000 5.666）
+    -huffman：   （100000 5.61）
+    -zstd：      （100000 6.41 √）
     
+Dataset：
+    离散值（poi.csv π/360）
+    周期性（climate.csv 组合残差 上一个数和周期律的组合）
+

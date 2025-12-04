@@ -10,6 +10,7 @@ import (
 	"myalgo/algorithms/numerical"
 	"myalgo/algorithms/simple8b"
 	"myalgo/algorithms/snappy"
+	"myalgo/algorithms/xz"
 	"myalgo/algorithms/zstd"
 	"myalgo/common"
 	"os"
@@ -56,7 +57,12 @@ var testcase = []struct {
 	{"lz4", lz4.CompressFloat, lz4.DecompressFloat},
 	{"snappy", snappy.CompressFloat, snappy.DecompressFloat},
 	{"brotli", brotli.CompressFloat, brotli.DecompressFloat},
-	{"numerical", numerical.CompressFloat, numerical.DecompressFloat},
+	{"xz", xz.CompressFloat, xz.DecompressFloat},
+	{"numerical(zstd)", numerical.CompressFloat, numerical.DecompressFloat},
+	{"numerical(lz4)", numerical.CompressFloatLZ4, numerical.DecompressFloatLZ4},
+	{"numerical(snappy)", numerical.CompressFloatSnappy, numerical.DecompressFloatSnappy},
+	{"numerical(brotli)", numerical.CompressFloatBrotli, numerical.DecompressFloatBrotli},
+	{"numerical(xz)", numerical.CompressFloatXZ, numerical.DecompressFloatXZ},
 	// {"huffman", huffman.CompressFloat, huffman.DecompressFloat},
 	// {"elf", elf.CompressFloat, elf.DecompressFloat},
 	// {"chimp128", chimp128.CompressFloat, chimp128.DecompressFloat},
@@ -215,10 +221,10 @@ func testCompressor(t *testing.T, result []float64, CompressFloat func([]byte, [
 	resultWriter.Flush()
 }
 func TestFloats(t *testing.T) {
-	n := 100
+	n := 100000
 	// m := 100
 	// float64s, _ := ReadDataFromFile("./dataset/city_temperature.csv", n, 0, 2)
-	float64s, _ := common.ReadDataFromFile("./dataset/test/Stocks-DE.csv", n, 0, 0)
+	float64s, _ := common.ReadDataFromFile("./dataset/numericalSet/Water_DWW.csv", n, 1, 1)
 	// float64s, _ := common.ReadDataFromFile("./dataset/test/Air-sensor.csv", n, 0, 0)
 	// float64s = common.DeltaArr((float64s))
 	// float64s, _ := ReadDataFromFile("./dataset/air-sensor.csv", n, 4, 4)
